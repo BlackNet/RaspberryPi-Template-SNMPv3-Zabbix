@@ -15,10 +15,12 @@ zabbix_export:
         Monitors Pi-specific hardware sensors via NET-SNMP extend scripts
         that wrap vcgencmd:
           - SoC temperature
+          - AVS temperature (Pi 5 adaptive-voltage-scaling sensor)
           - ARM / Core / GPU clock frequencies
           - Core and SDRAM voltages (sdram_c, sdram_i, sdram_p)
           - Throttle / under-voltage register (bitmask)
           - ARM / GPU memory split
+          - RAM usage percentage (from /proc/meminfo)  [v16]
 
         OS-level metrics are intentionally omitted — use the built-in
         "Linux by Zabbix agent" template for those.
@@ -36,7 +38,9 @@ zabbix_export:
         |---------------------|---------|------------------------------------------|
         | {$PI.TEMP.MAX.WARN} | 70      | SoC temp warning  (deg C)                |
         | {$PI.TEMP.MAX.CRIT} | 80      | SoC temp critical (deg C)                |
+        | {$PI.TEMP.MAX.ELEV} | 60      | SoC temp elevated / info tier (deg C)    |
         | {$PI.VOLT.MIN.WARN} | 0.75    | Min core voltage (V) — override per host |
+        | {$PI.MEM.USED.WARN} | 85      | RAM usage warning threshold (%)          |
         | {$PI.THROTTLE.WARN} | 0       | Throttle register warn level             |
 
         > NOTE: Core voltage at idle is ~0.88 V due to DVFS.
@@ -56,9 +60,15 @@ zabbix_export:
         - macro: '{$PI.TEMP.MAX.CRIT}'
           value: '80'
           description: 'SoC temperature critical threshold in degrees Celsius'
+        - macro: '{$PI.TEMP.MAX.ELEV}'
+          value: '60'
+          description: 'SoC temperature elevated threshold in degrees Celsius (informational tier)'
         - macro: '{$PI.VOLT.MIN.WARN}'
           value: '0.75'
           description: 'Minimum acceptable core voltage in Volts (DVFS idle ~0.88V)'
+        - macro: '{$PI.MEM.USED.WARN}'
+          value: '85'
+          description: 'RAM usage warning threshold in percent'
         - macro: '{$PI.THROTTLE.WARN}'
           value: '0'
           description: 'Throttle register value above which to warn (0 = any throttle event)'
@@ -88,66 +98,130 @@ zabbix_export:
           pages:
             - name: ''
               widgets:
+                # ── Row 1 (y=0, h=4) — RAM [v16] ───────────────────────────
+                - type: gauge
+                  name: 'RAM Usage'
+                  x: '0'
+                  y: '0'
+                  width: '14'
+                  height: '4'
+                  fields:
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Raspberry Pi by SNMP'
+                        key: pi.mem.used.pct
+                    - type: INTEGER
+                      name: min
+                      value: '0'
+                    - type: INTEGER
+                      name: max
+                      value: '100'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 4CAF50
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FF9800
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '75'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: F44336
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '90'
+                - type: graph
+                  name: 'RAM Usage'
+                  x: '14'
+                  y: '0'
+                  width: '44'
+                  height: '4'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: 'Raspberry Pi by SNMP'
+                        name: 'RAM Usage'
+                # ── Row 2 (y=4, h=4) ───────────────────────────────────────
                 - type: graph
                   name: 'SoC Temperature'
                   x: '0'
-                  y: '0'
-                  width: '12'
-                  height: '5'
+                  y: '4'
+                  width: '29'
+                  height: '4'
                   fields:
                     - type: GRAPH
-                      name: graphid
+                      name: graphid.0
                       value:
                         host: 'Raspberry Pi by SNMP'
                         name: 'SoC Temperature'
                 - type: graph
                   name: 'Throttle Register'
-                  x: '12'
-                  y: '0'
-                  width: '12'
-                  height: '5'
+                  x: '29'
+                  y: '4'
+                  width: '29'
+                  height: '4'
                   fields:
                     - type: GRAPH
-                      name: graphid
+                      name: graphid.0
                       value:
                         host: 'Raspberry Pi by SNMP'
                         name: 'Throttle Register'
+                # ── Row 3 (y=8, h=4) ───────────────────────────────────────
                 - type: graph
                   name: 'CPU and GPU Clock Frequencies'
                   x: '0'
-                  y: '5'
-                  width: '24'
-                  height: '5'
+                  y: '8'
+                  width: '29'
+                  height: '4'
                   fields:
                     - type: GRAPH
-                      name: graphid
+                      name: graphid.0
                       value:
                         host: 'Raspberry Pi by SNMP'
                         name: 'CPU and GPU Clock Frequencies'
                 - type: graph
                   name: 'Supply Voltages'
-                  x: '0'
-                  y: '10'
-                  width: '12'
-                  height: '5'
+                  x: '29'
+                  y: '8'
+                  width: '29'
+                  height: '4'
                   fields:
                     - type: GRAPH
-                      name: graphid
+                      name: graphid.0
                       value:
                         host: 'Raspberry Pi by SNMP'
                         name: 'Supply Voltages'
+                # ── Row 4 (y=12, h=4) ──────────────────────────────────────
                 - type: graph
                   name: 'ARM and GPU Memory Split'
-                  x: '12'
-                  y: '10'
-                  width: '12'
-                  height: '5'
+                  x: '0'
+                  y: '12'
+                  width: '29'
+                  height: '4'
                   fields:
                     - type: GRAPH
-                      name: graphid
+                      name: graphid.0
                       value:
                         host: 'Raspberry Pi by SNMP'
                         name: 'ARM and GPU Memory Split'
+                - type: graph
+                  name: 'AVS Temperature'
+                  x: '29'
+                  y: '12'
+                  width: '29'
+                  height: '4'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: 'Raspberry Pi by SNMP'
+                        name: 'AVS Temperature'
 
       items:
         - uuid: db455f8f160943b6b192637efef86e39
@@ -163,6 +237,11 @@ zabbix_export:
             - tag: component
               value: temperature
           triggers:
+            - uuid: 963ceb2c7d194ef5bb2acae3cf3e2d0d
+              expression: 'avg(/Raspberry Pi by SNMP/pi.cpu.temp,5m)>{$PI.TEMP.MAX.ELEV}'
+              name: 'SoC temperature elevated (>{$PI.TEMP.MAX.ELEV}C)'
+              priority: AVERAGE
+              description: 'SoC temperature has been above {$PI.TEMP.MAX.ELEV}C for 5 minutes — monitor closely'
             - uuid: 3af2a87e317e4ee6ab0be09da74fd0ee
               expression: 'avg(/Raspberry Pi by SNMP/pi.cpu.temp,5m)>{$PI.TEMP.MAX.WARN}'
               name: 'SoC temperature above warning threshold (>{$PI.TEMP.MAX.WARN}C)'
@@ -177,7 +256,7 @@ zabbix_export:
         - uuid: cbf7d2a2aa934cd9a782cda7abab803d
           name: 'ARM Clock Frequency'
           type: SNMP_AGENT
-          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.13.112.105.45.97.114.109.45.99.108.111.99.107'
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.12.112.105.45.97.114.109.45.99.108.111.99.107'
           key: 'pi.arm.clock'
           delay: '60'
           value_type: FLOAT
@@ -190,7 +269,7 @@ zabbix_export:
         - uuid: 3274ca7967194cb18dc5bd3975ae46e2
           name: 'Core (VPU) Clock Frequency'
           type: SNMP_AGENT
-          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.14.112.105.45.99.111.114.101.45.99.108.111.99.107'
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.13.112.105.45.99.111.114.101.45.99.108.111.99.107'
           key: 'pi.core.clock'
           delay: '60'
           value_type: FLOAT
@@ -203,7 +282,7 @@ zabbix_export:
         - uuid: 50bb7a0916144b989cef4d505e032a80
           name: 'GPU (V3D) Clock Frequency'
           type: SNMP_AGENT
-          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.13.112.105.45.103.112.117.45.99.108.111.99.107'
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.12.112.105.45.103.112.117.45.99.108.111.99.107'
           key: 'pi.gpu.clock'
           delay: '60'
           value_type: FLOAT
@@ -216,7 +295,7 @@ zabbix_export:
         - uuid: 29ff2f9cdaa34e43b6d95e44ab7c9000
           name: 'Core Voltage'
           type: SNMP_AGENT
-          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.14.112.105.45.118.111.108.116.45.99.111.114.101'
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.12.112.105.45.118.111.108.116.45.99.111.114.101'
           key: 'pi.volt.core'
           delay: '60'
           value_type: FLOAT
@@ -235,7 +314,7 @@ zabbix_export:
         - uuid: 6c0a67fe14cc49b086e7311954929715
           name: 'SDRAM-C Voltage'
           type: SNMP_AGENT
-          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.17.112.105.45.118.111.108.116.45.115.100.114.97.109.45.99'
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.15.112.105.45.118.111.108.116.45.115.100.114.97.109.45.99'
           key: 'pi.volt.sdram.c'
           delay: '60'
           value_type: FLOAT
@@ -248,7 +327,7 @@ zabbix_export:
         - uuid: 93559ddfd37a454eacbbb6fc722c0fc3
           name: 'SDRAM-I Voltage'
           type: SNMP_AGENT
-          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.17.112.105.45.118.111.108.116.45.115.100.114.97.109.45.105'
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.15.112.105.45.118.111.108.116.45.115.100.114.97.109.45.105'
           key: 'pi.volt.sdram.i'
           delay: '60'
           value_type: FLOAT
@@ -261,7 +340,7 @@ zabbix_export:
         - uuid: 6a68ca48461b4b55950f346d8706af90
           name: 'SDRAM-P Voltage'
           type: SNMP_AGENT
-          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.17.112.105.45.118.111.108.116.45.115.100.114.97.109.45.112'
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.15.112.105.45.118.111.108.116.45.115.100.114.97.109.45.112'
           key: 'pi.volt.sdram.p'
           delay: '60'
           value_type: FLOAT
@@ -274,7 +353,7 @@ zabbix_export:
         - uuid: 2fbe2e8719c3461db36472b51ddbe40b
           name: 'Throttle Register'
           type: SNMP_AGENT
-          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.12.112.105.45.116.104.114.111.116.116.108.101'
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.11.112.105.45.116.104.114.111.116.116.108.101'
           key: 'pi.throttle'
           delay: '30'
           value_type: UNSIGNED
@@ -316,7 +395,7 @@ zabbix_export:
         - uuid: 0d52d90c5c154c9b9533e50842358ca9
           name: 'ARM Memory'
           type: SNMP_AGENT
-          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.11.112.105.45.109.101.109.45.97.114.109'
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.10.112.105.45.109.101.109.45.97.114.109'
           key: 'pi.mem.arm'
           delay: '300'
           value_type: FLOAT
@@ -329,7 +408,7 @@ zabbix_export:
         - uuid: eaff83708bee4879a1575040ef829fbe
           name: 'GPU Memory'
           type: SNMP_AGENT
-          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.11.112.105.45.109.101.109.45.103.112.117'
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.10.112.105.45.109.101.109.45.103.112.117'
           key: 'pi.mem.gpu'
           delay: '300'
           value_type: FLOAT
@@ -338,6 +417,38 @@ zabbix_export:
           tags:
             - tag: component
               value: memory
+
+        - uuid: a9a9cd3a23dd4138b73161981ea99bad
+          name: 'AVS Temperature'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.11.112.105.45.97.118.115.45.116.101.109.112'
+          key: 'pi.avs.temp'
+          delay: '60'
+          value_type: FLOAT
+          units: 'm°C'
+          description: 'Pi 5 AVS (Adaptive Voltage Scaling) temperature in millidegrees Celsius via vcgencmd get_config int | grep avs_temp. Pi 4 returns 0.'
+          tags:
+            - tag: component
+              value: temperature
+
+        - uuid: 5e2134bd213f47e997d6e68aa7d694f1
+          name: 'RAM Usage'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.15.112.105.45.109.101.109.45.117.115.101.100.45.112.99.116'
+          key: 'pi.mem.used.pct'
+          delay: '60'
+          value_type: FLOAT
+          units: '%'
+          description: 'RAM usage as a percentage, computed from /proc/meminfo (MemTotal - MemAvailable) / MemTotal * 100'
+          tags:
+            - tag: component
+              value: memory
+          triggers:
+            - uuid: 30d744d3885548af9c87da452c2814c0
+              expression: 'avg(/Raspberry Pi by SNMP/pi.mem.used.pct,5m)>{$PI.MEM.USED.WARN}'
+              name: 'RAM usage above warning threshold (>{$PI.MEM.USED.WARN}%)'
+              priority: WARNING
+              description: 'RAM usage has been above {$PI.MEM.USED.WARN}% for 5 minutes'
 
   graphs:
     - uuid: 9bbb2c76746444d98df3b280857981be
@@ -352,6 +463,19 @@ zabbix_export:
           item:
             host: 'Raspberry Pi by SNMP'
             key: 'pi.cpu.temp'
+
+    - uuid: c3e1f8ab4d2e4b3a9f7c1d5e8a2b6f4c
+      name: 'AVS Temperature'
+      width: '900'
+      height: '200'
+      yaxismin: '0'
+      ymin_type_1: FIXED
+      graph_items:
+        - sortorder: '0'
+          color: FF9800
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.avs.temp'
 
     - uuid: 1fa9889b782643d59c4a6bdec395cc69
       name: 'CPU and GPU Clock Frequencies'
@@ -434,3 +558,18 @@ zabbix_export:
           item:
             host: 'Raspberry Pi by SNMP'
             key: 'pi.mem.gpu'
+
+    - uuid: 2bdf8e9856064922b6dc136e456a9e2b
+      name: 'RAM Usage'
+      width: '900'
+      height: '200'
+      yaxismin: '0'
+      yaxismax: '100'
+      ymin_type_1: FIXED
+      ymax_type_1: FIXED
+      graph_items:
+        - sortorder: '0'
+          color: 8BC34A
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.mem.used.pct'
