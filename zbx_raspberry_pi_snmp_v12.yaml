@@ -1,0 +1,436 @@
+zabbix_export:
+  version: '8.0'
+
+  template_groups:
+    - uuid: 9bfe5be742bd4b8b9519704747ad853b
+      name: Templates/RaspberryPi
+
+  templates:
+    - uuid: 61996a2bafbd4798b4c8a3f1ba9e9c20
+      template: 'Raspberry Pi by SNMP'
+      name: 'Raspberry Pi by SNMP'
+      description: |
+        ## Raspberry Pi 4 / 5 — Hardware Telemetry via SNMPv3
+
+        Monitors Pi-specific hardware sensors via NET-SNMP extend scripts
+        that wrap vcgencmd:
+          - SoC temperature
+          - ARM / Core / GPU clock frequencies
+          - Core and SDRAM voltages (sdram_c, sdram_i, sdram_p)
+          - Throttle / under-voltage register (bitmask)
+          - ARM / GPU memory split
+
+        OS-level metrics are intentionally omitted — use the built-in
+        "Linux by Zabbix agent" template for those.
+
+        ### Requirements
+        - net-snmp (snmpd) installed and running on the Pi
+        - vcgencmd available (standard on Raspberry Pi OS)
+        - Wrapper scripts installed to /usr/local/bin/zabbix-pi/
+        - snmpd extend stanzas loaded from setup script
+        - SNMPv3 user configured (run pi-snmp-setup.sh)
+        - Zabbix host SNMP interface: <host-ip>:161, SNMPv3, authPriv
+
+        ### Macro defaults
+        | Macro               | Default | Purpose                                  |
+        |---------------------|---------|------------------------------------------|
+        | {$PI.TEMP.MAX.WARN} | 70      | SoC temp warning  (deg C)                |
+        | {$PI.TEMP.MAX.CRIT} | 80      | SoC temp critical (deg C)                |
+        | {$PI.VOLT.MIN.WARN} | 0.75    | Min core voltage (V) — override per host |
+        | {$PI.THROTTLE.WARN} | 0       | Throttle register warn level             |
+
+        > NOTE: Core voltage at idle is ~0.88 V due to DVFS.
+        > Default {$PI.VOLT.MIN.WARN}=0.75 gives safe headroom.
+
+        ### Tested on
+        Raspberry Pi OS Bullseye / Bookworm | Pi 4B | Pi 5
+        Zabbix 8.0
+
+      groups:
+        - name: Templates/RaspberryPi
+
+      macros:
+        - macro: '{$PI.TEMP.MAX.WARN}'
+          value: '70'
+          description: 'SoC temperature warning threshold in degrees Celsius'
+        - macro: '{$PI.TEMP.MAX.CRIT}'
+          value: '80'
+          description: 'SoC temperature critical threshold in degrees Celsius'
+        - macro: '{$PI.VOLT.MIN.WARN}'
+          value: '0.75'
+          description: 'Minimum acceptable core voltage in Volts (DVFS idle ~0.88V)'
+        - macro: '{$PI.THROTTLE.WARN}'
+          value: '0'
+          description: 'Throttle register value above which to warn (0 = any throttle event)'
+
+      valuemaps:
+        - uuid: 30e083131b7f41d4bd1039ded2f8c017
+          name: 'Pi Throttle Bitmask'
+          mappings:
+            - value: '0'
+              newvalue: 'Clean'
+            - value: '1'
+              newvalue: 'Under-voltage NOW'
+            - value: '2'
+              newvalue: 'Freq-capped NOW'
+            - value: '4'
+              newvalue: 'Throttled NOW'
+            - value: '65536'
+              newvalue: 'Under-voltage since boot'
+            - value: '131072'
+              newvalue: 'Freq-capped since boot'
+            - value: '262144'
+              newvalue: 'Throttled since boot'
+
+      dashboards:
+        - uuid: 6c0234a21a1447ed9706f3abe8c9507e
+          name: 'Raspberry Pi Hardware'
+          pages:
+            - name: ''
+              widgets:
+                - type: graph
+                  name: 'SoC Temperature'
+                  x: '0'
+                  y: '0'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'Raspberry Pi by SNMP'
+                        name: 'SoC Temperature'
+                - type: graph
+                  name: 'Throttle Register'
+                  x: '12'
+                  y: '0'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'Raspberry Pi by SNMP'
+                        name: 'Throttle Register'
+                - type: graph
+                  name: 'CPU and GPU Clock Frequencies'
+                  x: '0'
+                  y: '5'
+                  width: '24'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'Raspberry Pi by SNMP'
+                        name: 'CPU and GPU Clock Frequencies'
+                - type: graph
+                  name: 'Supply Voltages'
+                  x: '0'
+                  y: '10'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'Raspberry Pi by SNMP'
+                        name: 'Supply Voltages'
+                - type: graph
+                  name: 'ARM and GPU Memory Split'
+                  x: '12'
+                  y: '10'
+                  width: '12'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'Raspberry Pi by SNMP'
+                        name: 'ARM and GPU Memory Split'
+
+      items:
+        - uuid: db455f8f160943b6b192637efef86e39
+          name: 'SoC Temperature'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.11.112.105.45.99.112.117.45.116.101.109.112'
+          key: 'pi.cpu.temp'
+          delay: '60'
+          value_type: FLOAT
+          units: 'C'
+          description: 'Raspberry Pi SoC temperature reported by vcgencmd measure_temp'
+          tags:
+            - tag: component
+              value: temperature
+          triggers:
+            - uuid: 3af2a87e317e4ee6ab0be09da74fd0ee
+              expression: 'avg(/Raspberry Pi by SNMP/pi.cpu.temp,5m)>{$PI.TEMP.MAX.WARN}'
+              name: 'SoC temperature above warning threshold (>{$PI.TEMP.MAX.WARN}C)'
+              priority: WARNING
+              description: 'SoC temperature has been above {$PI.TEMP.MAX.WARN}C for 5 minutes'
+            - uuid: b504b323850d4ab99d2bf84061ca6283
+              expression: 'avg(/Raspberry Pi by SNMP/pi.cpu.temp,5m)>{$PI.TEMP.MAX.CRIT}'
+              name: 'SoC temperature above CRITICAL threshold (>{$PI.TEMP.MAX.CRIT}C)'
+              priority: HIGH
+              description: 'SoC temperature has been above {$PI.TEMP.MAX.CRIT}C for 5 minutes'
+
+        - uuid: cbf7d2a2aa934cd9a782cda7abab803d
+          name: 'ARM Clock Frequency'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.13.112.105.45.97.114.109.45.99.108.111.99.107'
+          key: 'pi.arm.clock'
+          delay: '60'
+          value_type: FLOAT
+          units: 'Hz'
+          description: 'ARM core clock frequency in Hz via vcgencmd measure_clock arm'
+          tags:
+            - tag: component
+              value: clock
+
+        - uuid: 3274ca7967194cb18dc5bd3975ae46e2
+          name: 'Core (VPU) Clock Frequency'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.14.112.105.45.99.111.114.101.45.99.108.111.99.107'
+          key: 'pi.core.clock'
+          delay: '60'
+          value_type: FLOAT
+          units: 'Hz'
+          description: 'VPU/Core clock frequency in Hz via vcgencmd measure_clock core'
+          tags:
+            - tag: component
+              value: clock
+
+        - uuid: 50bb7a0916144b989cef4d505e032a80
+          name: 'GPU (V3D) Clock Frequency'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.13.112.105.45.103.112.117.45.99.108.111.99.107'
+          key: 'pi.gpu.clock'
+          delay: '60'
+          value_type: FLOAT
+          units: 'Hz'
+          description: 'V3D/GPU clock frequency in Hz via vcgencmd measure_clock v3d'
+          tags:
+            - tag: component
+              value: clock
+
+        - uuid: 29ff2f9cdaa34e43b6d95e44ab7c9000
+          name: 'Core Voltage'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.14.112.105.45.118.111.108.116.45.99.111.114.101'
+          key: 'pi.volt.core'
+          delay: '60'
+          value_type: FLOAT
+          units: 'V'
+          description: 'Core supply voltage in Volts (DVFS; ~0.88V at idle)'
+          tags:
+            - tag: component
+              value: voltage
+          triggers:
+            - uuid: 7edfcb02c42b4c5085badd809e5dd231
+              expression: 'last(/Raspberry Pi by SNMP/pi.volt.core)<{$PI.VOLT.MIN.WARN}'
+              name: 'Core voltage below warning threshold (<{$PI.VOLT.MIN.WARN}V)'
+              priority: WARNING
+              description: 'Core voltage dropped below {$PI.VOLT.MIN.WARN}V — possible PSU issue'
+
+        - uuid: 6c0a67fe14cc49b086e7311954929715
+          name: 'SDRAM-C Voltage'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.17.112.105.45.118.111.108.116.45.115.100.114.97.109.45.99'
+          key: 'pi.volt.sdram.c'
+          delay: '60'
+          value_type: FLOAT
+          units: 'V'
+          description: 'SDRAM core voltage in Volts'
+          tags:
+            - tag: component
+              value: voltage
+
+        - uuid: 93559ddfd37a454eacbbb6fc722c0fc3
+          name: 'SDRAM-I Voltage'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.17.112.105.45.118.111.108.116.45.115.100.114.97.109.45.105'
+          key: 'pi.volt.sdram.i'
+          delay: '60'
+          value_type: FLOAT
+          units: 'V'
+          description: 'SDRAM I/O voltage in Volts'
+          tags:
+            - tag: component
+              value: voltage
+
+        - uuid: 6a68ca48461b4b55950f346d8706af90
+          name: 'SDRAM-P Voltage'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.17.112.105.45.118.111.108.116.45.115.100.114.97.109.45.112'
+          key: 'pi.volt.sdram.p'
+          delay: '60'
+          value_type: FLOAT
+          units: 'V'
+          description: 'SDRAM phy voltage in Volts'
+          tags:
+            - tag: component
+              value: voltage
+
+        - uuid: 2fbe2e8719c3461db36472b51ddbe40b
+          name: 'Throttle Register'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.12.112.105.45.116.104.114.111.116.116.108.101'
+          key: 'pi.throttle'
+          delay: '30'
+          value_type: UNSIGNED
+          description: |
+            Throttle/under-voltage bitmask from vcgencmd get_throttled.
+            Bit 0  (1)      = Under-voltage detected NOW
+            Bit 1  (2)      = ARM frequency capped NOW
+            Bit 2  (4)      = Currently throttled
+            Bit 16 (65536)  = Under-voltage has occurred since last reboot
+            Bit 17 (131072) = ARM frequency capping occurred since last reboot
+            Bit 18 (262144) = Throttling occurred since last reboot
+          valuemap:
+            name: 'Pi Throttle Bitmask'
+          tags:
+            - tag: component
+              value: throttle
+          triggers:
+            - uuid: 0ab672dbf01641a8826d68dacca5e458
+              expression: 'last(/Raspberry Pi by SNMP/pi.throttle) band 1'
+              name: 'Pi under-voltage detected RIGHT NOW (bit 0)'
+              priority: HIGH
+              description: 'Supply voltage dropped below minimum — check PSU and cable immediately'
+            - uuid: c50b129f4d5b4b63bb2358e01167460d
+              expression: 'last(/Raspberry Pi by SNMP/pi.throttle) band 2'
+              name: 'Pi ARM frequency capped RIGHT NOW (bit 1)'
+              priority: WARNING
+              description: 'ARM clock has been reduced due to temperature or voltage'
+            - uuid: 6911d9f364f84d03b923d02c061384cd
+              expression: 'last(/Raspberry Pi by SNMP/pi.throttle) band 4'
+              name: 'Pi currently throttled RIGHT NOW (bit 2)'
+              priority: HIGH
+              description: 'Pi is actively throttling — reduce workload or improve cooling'
+            - uuid: dca7f9a06cd04185ba7190ed785bd7e8
+              expression: 'last(/Raspberry Pi by SNMP/pi.throttle) band 65536'
+              name: 'Pi has experienced under-voltage since last boot (bit 16)'
+              priority: WARNING
+              description: 'Under-voltage event recorded since last reboot — review PSU quality'
+
+        - uuid: 0d52d90c5c154c9b9533e50842358ca9
+          name: 'ARM Memory'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.11.112.105.45.109.101.109.45.97.114.109'
+          key: 'pi.mem.arm'
+          delay: '300'
+          value_type: FLOAT
+          units: 'B'
+          description: 'RAM allocated to ARM (OS) side in bytes via vcgencmd get_mem arm'
+          tags:
+            - tag: component
+              value: memory
+
+        - uuid: eaff83708bee4879a1575040ef829fbe
+          name: 'GPU Memory'
+          type: SNMP_AGENT
+          snmp_oid: '1.3.6.1.4.1.8072.1.3.2.3.1.2.11.112.105.45.109.101.109.45.103.112.117'
+          key: 'pi.mem.gpu'
+          delay: '300'
+          value_type: FLOAT
+          units: 'B'
+          description: 'RAM allocated to GPU side in bytes via vcgencmd get_mem gpu'
+          tags:
+            - tag: component
+              value: memory
+
+  graphs:
+    - uuid: 9bbb2c76746444d98df3b280857981be
+      name: 'SoC Temperature'
+      width: '900'
+      height: '200'
+      yaxismin: '0'
+      ymin_type_1: FIXED
+      graph_items:
+        - sortorder: '0'
+          color: FF5722
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.cpu.temp'
+
+    - uuid: 1fa9889b782643d59c4a6bdec395cc69
+      name: 'CPU and GPU Clock Frequencies'
+      width: '900'
+      height: '200'
+      yaxismin: '0'
+      ymin_type_1: FIXED
+      graph_items:
+        - sortorder: '0'
+          color: 2196F3
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.arm.clock'
+        - sortorder: '1'
+          color: 4CAF50
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.core.clock'
+        - sortorder: '2'
+          color: FF9800
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.gpu.clock'
+
+    - uuid: 27228245a27944d5ac37bf5aee4a3a08
+      name: 'Supply Voltages'
+      width: '900'
+      height: '200'
+      yaxismin: '0'
+      ymin_type_1: FIXED
+      graph_items:
+        - sortorder: '0'
+          color: E91E63
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.volt.core'
+        - sortorder: '1'
+          color: 9C27B0
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.volt.sdram.c'
+        - sortorder: '2'
+          color: 3F51B5
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.volt.sdram.i'
+        - sortorder: '3'
+          color: 00BCD4
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.volt.sdram.p'
+
+    - uuid: 5684b959269a4de1aab72e12acbf6c9a
+      name: 'Throttle Register'
+      width: '900'
+      height: '200'
+      yaxismin: '0'
+      ymin_type_1: FIXED
+      graph_items:
+        - sortorder: '0'
+          color: F44336
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.throttle'
+
+    - uuid: 20cb3833c4f3483681b9a36184ac763c
+      name: 'ARM and GPU Memory Split'
+      width: '900'
+      height: '200'
+      yaxismin: '0'
+      ymin_type_1: FIXED
+      graph_items:
+        - sortorder: '0'
+          color: 607D8B
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.mem.arm'
+        - sortorder: '1'
+          color: 8BC34A
+          item:
+            host: 'Raspberry Pi by SNMP'
+            key: 'pi.mem.gpu'
