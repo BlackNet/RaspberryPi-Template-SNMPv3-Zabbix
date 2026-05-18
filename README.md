@@ -2,7 +2,8 @@
 
 ![Zabbix](https://img.shields.io/badge/Zabbix-8.0-red?logo=zabbix)
 ![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%204B%20%2F%205-c51a4a?logo=raspberry-pi)
-![OS](https://img.shields.io/badge/OS-Raspberry%20Pi%20OS%20Bullseye%20%2F%20Bookworm-green)
+![Pi OS](https://img.shields.io/badge/Pi%20OS-Bullseye%20%2F%20Bookworm-green)
+![Server OS](https://img.shields.io/badge/Server%20OS-Debian%20Trixie-blue)
 ![Protocol](https://img.shields.io/badge/Protocol-SNMPv3%20authPriv-blue)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
@@ -106,6 +107,7 @@ Collects Pi-specific metrics that the standard Linux agent template cannot see â
 | Requirement | Notes |
 |-------------|-------|
 | Zabbix 8.0 | Template format targets 8.0; will not import on older versions |
+| Debian Trixie (tested) | Zabbix server OS â€” other Debian/Ubuntu releases should work equally well |
 | SNMP polling enabled | Zabbix server/proxy must be able to reach Pi on UDP port 161 |
 | Network path to Pi | Direct LAN, WireGuard, Tailscale, or other VPN all work |
 
@@ -458,13 +460,23 @@ journalctl -u snmpd -n 50
 
 ## Tested Platforms
 
-| Hardware | OS | Zabbix |
-|----------|----|--------|
+### Raspberry Pi (monitored hosts)
+
+| Hardware | OS | Zabbix Template |
+|----------|----|----------------|
 | Raspberry Pi 4 Model B (4 GB) | Raspberry Pi OS Bullseye (32-bit) | 8.0 |
 | Raspberry Pi 4 Model B (8 GB) | Raspberry Pi OS Bookworm (64-bit) | 8.0 |
 | Raspberry Pi 5 (8 GB) | Raspberry Pi OS Bookworm (64-bit) | 8.0 |
 
+### Zabbix Server
+
+| OS | Zabbix Version |
+|----|----------------|
+| Debian Trixie (testing) | 8.0 |
+
 Network transports tested: direct LAN, Tailscale VPN.
+
+> **Note on Debian Trixie:** Trixie is Debian's current "testing" branch. The template was developed and validated on a Zabbix 8.0 server running Debian Trixie. No compatibility issues have been observed; the template should work equally well on Debian Bookworm (stable) or any Ubuntu LTS release.
 
 ---
 
